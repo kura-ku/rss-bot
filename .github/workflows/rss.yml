@@ -21,4 +21,5 @@ jobs:
 
       - run: python main.py
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_WEBHOOK_AI: ${{ secrets.DISCORD_WEBHOOK_AI }}
+          DISCORD_WEBHOOK_TECH: ${{ secrets.DISCORD_WEBHOOK_TECH }}
