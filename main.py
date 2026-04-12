@@ -7,12 +7,12 @@ import json
 
 # AI系
 AI_FEEDS = [
-    "https://openai.com/blog/rss.xml",
-    "https://deepmind.google/blog/rss.xml",
-    "https://ai.googleblog.com/feeds/posts/default",
-    "https://feeds.feedburner.com/kdnuggets-data-mining-analytics",
-    "https://towardsdatascience.com/feed",
-    "https://aifeed.dev/feed.xml"
+    "https://www.itmedia.co.jp/rss/2.0/enterprise.xml",
+    "https://www.publickey1.jp/atom.xml",
+    "https://ledge.ai/feed/",
+    "https://codezine.jp/rss/new/20/index.xml",
+    "https://dev.classmethod.jp/feed/",
+    "https://qiita.com/popular-items/feed"
 ]
 
 # IT・テックニュース
