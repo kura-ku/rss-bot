@@ -3,7 +3,6 @@ import requests
 import os
 import json
 from collections import Counter
-import openai
 
 # ===== 設定 =====
 
@@ -30,11 +29,7 @@ REDDIT_FEEDS = [
     "https://www.reddit.com/r/technology/.rss"
 ]
 
-WEBHOOK_TOP3 = os.getenv("DISCORD_WEBHOOK_REDDIT")
-WEBHOOK_AI = os.getenv("DISCORD_WEBHOOK_AI")
-WEBHOOK_TECH = os.getenv("DISCORD_WEBHOOK_TECH")
-
-openai.api_key = os.getenv("OPENAI_API_KEY")
+WEBHOOK_TOP3 = os.getenv("DISCORD_WEBHOOK_TOP5")
 
 SEEN_FILE = "seen.json"
 
@@ -56,42 +51,6 @@ def post_to_discord(webhook, message):
         print(e)
         return None
 
-# ===== 個別投稿 =====
-def post_individual(title, link, webhook, label):
-    message = f"""【{label}】
-{title}
-{link}
-"""
-    post_to_discord(webhook, message)
-
-# ===== AI（10秒台本）=====
-def create_short_script(title, link):
-    prompt = f"""
-以下のニュースから
-10秒のショート動画台本を作成してください
-
-【条件】
-・2〜3文
-・最初にインパクト
-・中学生でも理解できる
-・最後に「気になる人はフォロー」
-
-【記事】
-{title}
-{link}
-"""
-
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response["choices"][0]["message"]["content"]
-
-    except Exception as e:
-        print(f"AIエラー: {e}")
-        return "生成失敗"
-
 # ===== データ収集 =====
 all_articles = []
 
@@ -99,23 +58,13 @@ def fetch_rss(feeds, source):
     for url in feeds:
         feed = feedparser.parse(url)
 
-        for entry in feed.entries[:3]:
+        for entry in feed.entries[:5]:
             if entry.link in seen_urls:
                 continue
 
-            title = entry.title
-            link = entry.link
-
-            # 👇 個別投稿
-            if source == "jp":
-                post_individual(title, link, WEBHOOK_AI, "AI・IT（教養）")
-
-            elif source == "tech":
-                post_individual(title, link, WEBHOOK_TECH, "海外ITニュース")
-
             all_articles.append({
-                "title": title,
-                "link": link,
+                "title": entry.title,
+                "link": entry.link,
                 "source": source,
                 "score": 1
             })
@@ -124,7 +73,7 @@ def fetch_reddit(feeds):
     for url in feeds:
         feed = feedparser.parse(url)
 
-        for entry in feed.entries[:3]:
+        for entry in feed.entries[:5]:
             if entry.link in seen_urls:
                 continue
 
@@ -154,27 +103,21 @@ for a in all_articles:
     trend = sum(counter[w] for w in words)
 
     if a["source"] == "reddit":
-        a["score"] += 5
+        a["score"] += 5  # Reddit強化
 
     a["score"] += trend
 
 # ===== TOP3抽出 =====
 top3 = sorted(all_articles, key=lambda x: x["score"], reverse=True)[:3]
 
-# ===== TOP3投稿 =====
-message = "🔥【AI・ITトレンド TOP3｜ショート台本付き】\n\n"
+# ===== 投稿 =====
+message = "🔥【AI・ITトレンド TOP3】\n\n"
 
 for i, a in enumerate(top3, 1):
-    script = create_short_script(a["title"], a["link"])
+    source_label = "（Reddit🔥）" if a["source"] == "reddit" else ""
 
-    if script == "生成失敗":
-        continue
-
-    message += f"""■{i}. {a['title']}
+    message += f"""■{i}. {a['title']} {source_label}
 {a['link']}
-
-🎬 台本：
-{script}
 
 ----------------------
 
