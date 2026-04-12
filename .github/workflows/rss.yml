@@ -2,7 +2,7 @@ name: rss-Bot
 
 on:
   schedule:
-    - cron: "0 */3 * * *"
+    - cron: "0 23,4,10 * * *"
   workflow_dispatch:
 
 jobs:
