@@ -31,6 +31,9 @@ REDDIT_FEEDS = [
 ]
 
 WEBHOOK_TOP3 = os.getenv("DISCORD_WEBHOOK_TOP5")
+WEBHOOK_AI = os.getenv("DISCORD_WEBHOOK_AI")
+WEBHOOK_TECH = os.getenv("DISCORD_WEBHOOK_TECH")
+
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 SEEN_FILE = "seen.json"
@@ -52,6 +55,14 @@ def post_to_discord(webhook, message):
     except Exception as e:
         print(e)
         return None
+
+# ===== 個別投稿 =====
+def post_individual(title, link, webhook, label):
+    message = f"""【{label}】
+{title}
+{link}
+"""
+    post_to_discord(webhook, message)
 
 # ===== AI（10秒台本）=====
 def create_short_script(title, link):
@@ -88,13 +99,23 @@ def fetch_rss(feeds, source):
     for url in feeds:
         feed = feedparser.parse(url)
 
-        for entry in feed.entries[:5]:
+        for entry in feed.entries[:3]:
             if entry.link in seen_urls:
                 continue
 
+            title = entry.title
+            link = entry.link
+
+            # 👇 個別投稿
+            if source == "jp":
+                post_individual(title, link, WEBHOOK_AI, "AI・IT（教養）")
+
+            elif source == "tech":
+                post_individual(title, link, WEBHOOK_TECH, "海外ITニュース")
+
             all_articles.append({
-                "title": entry.title,
-                "link": entry.link,
+                "title": title,
+                "link": link,
                 "source": source,
                 "score": 1
             })
@@ -103,7 +124,7 @@ def fetch_reddit(feeds):
     for url in feeds:
         feed = feedparser.parse(url)
 
-        for entry in feed.entries[:5]:
+        for entry in feed.entries[:3]:
             if entry.link in seen_urls:
                 continue
 
@@ -140,7 +161,7 @@ for a in all_articles:
 # ===== TOP3抽出 =====
 top3 = sorted(all_articles, key=lambda x: x["score"], reverse=True)[:3]
 
-# ===== 投稿 =====
+# ===== TOP3投稿 =====
 message = "🔥【AI・ITトレンド TOP3｜ショート台本付き】\n\n"
 
 for i, a in enumerate(top3, 1):
