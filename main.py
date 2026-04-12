@@ -6,8 +6,11 @@ import json
 # ===== 設定 =====
 RSS_FEEDS = [
     "https://openai.com/blog/rss.xml",
-    "https://zenn.dev/feed",
-    "https://qiita.com/popular-items/feed"
+    "https://deepmind.google/blog/rss.xml",
+    "https://ai.googleblog.com/feeds/posts/default",
+    "https://feeds.feedburner.com/kdnuggets-data-mining-analytics",
+    "https://towardsdatascience.com/feed",
+    "https://aifeed.dev/feed.xml"
 ]
 
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
