@@ -3,6 +3,7 @@ import requests
 import os
 import json
 from collections import Counter
+import openai
 
 # ===== 設定 =====
 
@@ -29,7 +30,8 @@ REDDIT_FEEDS = [
     "https://www.reddit.com/r/technology/.rss"
 ]
 
-WEBHOOK_TOP5 = os.getenv("DISCORD_WEBHOOK_TOP5")
+WEBHOOK_TOP3 = os.getenv("DISCORD_WEBHOOK_TOP5")
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 SEEN_FILE = "seen.json"
 
@@ -50,6 +52,34 @@ def post_to_discord(webhook, message):
     except Exception as e:
         print(e)
         return None
+
+# ===== AI（10秒台本）=====
+def create_short_script(title, link):
+    prompt = f"""
+以下のニュースから
+10秒のショート動画台本を作成してください
+
+【条件】
+・2〜3文
+・最初にインパクト
+・中学生でも理解できる
+・最後に「気になる人はフォロー」
+
+【記事】
+{title}
+{link}
+"""
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response["choices"][0]["message"]["content"]
+
+    except Exception as e:
+        print(f"AIエラー: {e}")
+        return "生成失敗"
 
 # ===== データ収集 =====
 all_articles = []
@@ -92,7 +122,6 @@ fetch_rss(TECH_FEEDS, "tech")
 fetch_reddit(REDDIT_FEEDS)
 
 # ===== スコアリング =====
-
 titles = [a["title"] for a in all_articles]
 
 counter = Counter()
@@ -104,25 +133,40 @@ for a in all_articles:
     trend = sum(counter[w] for w in words)
 
     if a["source"] == "reddit":
-        a["score"] += 5  # Reddit強化
+        a["score"] += 5
 
     a["score"] += trend
 
-# ===== TOP5抽出 =====
-top5 = sorted(all_articles, key=lambda x: x["score"], reverse=True)[:5]
+# ===== TOP3抽出 =====
+top3 = sorted(all_articles, key=lambda x: x["score"], reverse=True)[:3]
 
 # ===== 投稿 =====
-message = "🔥【AI・ITトレンド TOP5】\n\n"
+message = "🔥【AI・ITトレンド TOP3｜ショート台本付き】\n\n"
 
-for i, a in enumerate(top5, 1):
-    message += f"{i}. {a['title']}\n{a['link']}\n\n"
+for i, a in enumerate(top3, 1):
+    script = create_short_script(a["title"], a["link"])
 
-status = post_to_discord(WEBHOOK_TOP5, message)
+    if script == "生成失敗":
+        continue
 
-print("TOP5:", status)
+    message += f"""■{i}. {a['title']}
+{a['link']}
+
+🎬 台本：
+{script}
+
+----------------------
+
+"""
+
+# Discord制限対策
+message = message[:1900]
+
+status = post_to_discord(WEBHOOK_TOP3, message)
+print("TOP3投稿:", status)
 
 # ===== 保存 =====
-for a in top5:
+for a in top3:
     new_seen_urls.add(a["link"])
 
 with open(SEEN_FILE, "w") as f:
