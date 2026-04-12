@@ -24,9 +24,16 @@ TECH_FEEDS = [
     "https://hnrss.org/frontpage"
 ]
 
+REDDIT_FEEDS = [
+    "https://www.reddit.com/r/artificial/.rss",
+    "https://www.reddit.com/r/ChatGPT/.rss",
+    "https://www.reddit.com/r/technology/.rss"
+]
+
 # Webhook（2つ用意）
 WEBHOOK_AI = os.getenv("DISCORD_WEBHOOK_AI")
 WEBHOOK_TECH = os.getenv("DISCORD_WEBHOOK_TECH")
+WEBHOOK_REDDIT = os.getenv("DISCORD_WEBHOOK_REDDIT")
 
 SEEN_FILE = "seen.json"
 
@@ -78,6 +85,7 @@ def process_feeds(feeds, webhook, label):
 # ===== 実行 =====
 process_feeds(AI_FEEDS, WEBHOOK_AI, "新着AIニュース")
 process_feeds(TECH_FEEDS, WEBHOOK_TECH, "IT・テックニュース")
+process_feeds(REDDIT_FEEDS, WEBHOOK_REDDIT, "IT・テックニュース")
 
 # ===== 保存 =====
 with open(SEEN_FILE, "w") as f:
