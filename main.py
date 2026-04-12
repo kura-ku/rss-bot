@@ -30,6 +30,8 @@ REDDIT_FEEDS = [
 ]
 
 WEBHOOK_TOP3 = os.getenv("DISCORD_WEBHOOK_TOP5")
+WEBHOOK_AI = os.getenv("DISCORD_WEBHOOK_AI")
+WEBHOOK_TECH = os.getenv("DISCORD_WEBHOOK_TECH")
 
 SEEN_FILE = "seen.json"
 
@@ -51,6 +53,14 @@ def post_to_discord(webhook, message):
         print(e)
         return None
 
+# ===== 個別投稿 =====
+def post_individual(title, link, webhook, label):
+    message = f"""【{label}】
+{title}
+{link}
+"""
+    post_to_discord(webhook, message)
+
 # ===== データ収集 =====
 all_articles = []
 
@@ -58,13 +68,24 @@ def fetch_rss(feeds, source):
     for url in feeds:
         feed = feedparser.parse(url)
 
-        for entry in feed.entries[:5]:
+        for entry in feed.entries[:3]:  # 投稿数制限
             if entry.link in seen_urls:
                 continue
 
+            title = entry.title
+            link = entry.link
+
+            # 👇 個別投稿（追加部分）
+            if source == "jp":
+                post_individual(title, link, WEBHOOK_AI, "AI・IT（教養）")
+
+            elif source == "tech":
+                post_individual(title, link, WEBHOOK_TECH, "海外ITニュース")
+
+            # TOP3用
             all_articles.append({
-                "title": entry.title,
-                "link": entry.link,
+                "title": title,
+                "link": link,
                 "source": source,
                 "score": 1
             })
@@ -73,7 +94,7 @@ def fetch_reddit(feeds):
     for url in feeds:
         feed = feedparser.parse(url)
 
-        for entry in feed.entries[:5]:
+        for entry in feed.entries[:3]:
             if entry.link in seen_urls:
                 continue
 
@@ -103,27 +124,27 @@ for a in all_articles:
     trend = sum(counter[w] for w in words)
 
     if a["source"] == "reddit":
-        a["score"] += 5  # Reddit強化
+        a["score"] += 5
 
     a["score"] += trend
 
 # ===== TOP3抽出 =====
 top3 = sorted(all_articles, key=lambda x: x["score"], reverse=True)[:3]
 
-# ===== 投稿 =====
+# ===== 投稿（TOP3） =====
 message = "🔥【AI・ITトレンド TOP3】\n\n"
 
 for i, a in enumerate(top3, 1):
-    source_label = "（Reddit🔥）" if a["source"] == "reddit" else ""
+    label = "（Reddit🔥）" if a["source"] == "reddit" else ""
 
-    message += f"""■{i}. {a['title']} {source_label}
+    message += f"""■{i}. {a['title']} {label}
 {a['link']}
 
 ----------------------
 
 """
 
-# Discord制限対策
+# Discord制限
 message = message[:1900]
 
 status = post_to_discord(WEBHOOK_TOP3, message)
