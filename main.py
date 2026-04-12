@@ -2,11 +2,11 @@ import feedparser
 import requests
 import os
 import json
+from collections import Counter
 
 # ===== 設定 =====
 
-# 教養（日本RSS）
-AI_FEEDS = [
+JP_FEEDS = [
     "https://www.itmedia.co.jp/rss/2.0/enterprise.xml",
     "https://www.publickey1.jp/atom.xml",
     "https://ledge.ai/feed/",
@@ -15,7 +15,6 @@ AI_FEEDS = [
     "https://qiita.com/popular-items/feed"
 ]
 
-# ITニュース
 TECH_FEEDS = [
     "https://techcrunch.com/feed/",
     "https://www.wired.com/feed/rss",
@@ -24,17 +23,13 @@ TECH_FEEDS = [
     "https://hnrss.org/frontpage"
 ]
 
-# Reddit（バズ用）
 REDDIT_FEEDS = [
     "https://www.reddit.com/r/artificial/.rss",
     "https://www.reddit.com/r/ChatGPT/.rss",
     "https://www.reddit.com/r/technology/.rss"
 ]
 
-# Webhook
-WEBHOOK_AI = os.getenv("DISCORD_WEBHOOK_AI")
-WEBHOOK_TECH = os.getenv("DISCORD_WEBHOOK_TECH")
-WEBHOOK_REDDIT = os.getenv("DISCORD_WEBHOOK_REDDIT")
+WEBHOOK_TOP5 = os.getenv("DISCORD_WEBHOOK_TOP5")
 
 SEEN_FILE = "seen.json"
 
@@ -47,90 +42,88 @@ else:
 
 new_seen_urls = set(seen_urls)
 
-# ===== 共通 =====
+# ===== 投稿 =====
 def post_to_discord(webhook, message):
     try:
         res = requests.post(webhook, json={"content": message})
         return res.status_code
     except Exception as e:
-        print(f"エラー: {e}")
+        print(e)
         return None
 
-# ===== 通常RSS =====
-def process_feeds(feeds, webhook, label):
-    global new_seen_urls
+# ===== データ収集 =====
+all_articles = []
 
+def fetch_rss(feeds, source):
     for url in feeds:
         feed = feedparser.parse(url)
 
         for entry in feed.entries[:5]:
-            title = entry.title
-            link = entry.link
-
-            if link in seen_urls:
+            if entry.link in seen_urls:
                 continue
 
-            message = f"""【{label}】
-{title}
-{link}
-"""
+            all_articles.append({
+                "title": entry.title,
+                "link": entry.link,
+                "source": source,
+                "score": 1
+            })
 
-            status = post_to_discord(webhook, message)
-
-            print(f"{label}送信: {title} | {status}")
-
-            if status == 204:
-                new_seen_urls.add(link)
-
-# ===== Reddit専用（重要）=====
-def process_reddit(feeds, webhook):
-    global new_seen_urls
-
+def fetch_reddit(feeds):
     for url in feeds:
         feed = feedparser.parse(url)
 
-        entries = []
+        for entry in feed.entries[:5]:
+            if entry.link in seen_urls:
+                continue
 
-        for entry in feed.entries:
-            score = entry.get("score", 0)
+            score = entry.get("score", 1)
 
-            entries.append({
+            all_articles.append({
                 "title": entry.title,
                 "link": entry.link,
+                "source": "reddit",
                 "score": score if score else 1
             })
 
-        # 👍 スコア順
-        sorted_entries = sorted(entries, key=lambda x: x["score"], reverse=True)
-
-        for e in sorted_entries[:5]:
-            title = e["title"]
-            link = e["link"]
-            score = e["score"]
-
-            if link in seen_urls:
-                continue
-
-            message = f"""【Redditトレンド🔥】
-👍 {score}
-{title}
-{link}
-"""
-
-            status = post_to_discord(webhook, message)
-
-            print(f"Reddit送信: {title} | {status}")
-
-            if status == 204:
-                new_seen_urls.add(link)
-
 # ===== 実行 =====
-process_feeds(AI_FEEDS, WEBHOOK_AI, "教養（日本IT）")
-process_feeds(TECH_FEEDS, WEBHOOK_TECH, "海外ITニュース")
+fetch_rss(JP_FEEDS, "jp")
+fetch_rss(TECH_FEEDS, "tech")
+fetch_reddit(REDDIT_FEEDS)
 
-# 👇ここが今回の本質
-process_reddit(REDDIT_FEEDS, WEBHOOK_REDDIT)
+# ===== スコアリング =====
+
+titles = [a["title"] for a in all_articles]
+
+counter = Counter()
+for t in titles:
+    counter.update(t.lower().split())
+
+for a in all_articles:
+    words = a["title"].lower().split()
+    trend = sum(counter[w] for w in words)
+
+    if a["source"] == "reddit":
+        a["score"] += 5  # Reddit強化
+
+    a["score"] += trend
+
+# ===== TOP5抽出 =====
+top5 = sorted(all_articles, key=lambda x: x["score"], reverse=True)[:5]
+
+# ===== 投稿 =====
+message = "🔥【AI・ITトレンド TOP5】\n\n"
+
+for i, a in enumerate(top5, 1):
+    message += f"{i}. {a['title']}\n{a['link']}\n\n"
+
+status = post_to_discord(WEBHOOK_TOP5, message)
+
+print("TOP5:", status)
 
 # ===== 保存 =====
+for a in top5:
+    new_seen_urls.add(a["link"])
+
 with open(SEEN_FILE, "w") as f:
     json.dump(list(new_seen_urls), f)
