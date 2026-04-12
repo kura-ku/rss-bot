@@ -4,7 +4,9 @@ import os
 import json
 
 # ===== 設定 =====
-RSS_FEEDS = [
+
+# AI系
+AI_FEEDS = [
     "https://openai.com/blog/rss.xml",
     "https://deepmind.google/blog/rss.xml",
     "https://ai.googleblog.com/feeds/posts/default",
@@ -13,7 +15,19 @@ RSS_FEEDS = [
     "https://aifeed.dev/feed.xml"
 ]
 
-DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
+# IT・テックニュース
+TECH_FEEDS = [
+    "https://techcrunch.com/feed/",
+    "https://www.wired.com/feed/rss",
+    "https://feeds.arstechnica.com/arstechnica/index",
+    "https://www.theverge.com/rss/index.xml",
+    "https://hnrss.org/frontpage"
+]
+
+# Webhook（2つ用意）
+WEBHOOK_AI = os.getenv("DISCORD_WEBHOOK_AI")
+WEBHOOK_TECH = os.getenv("DISCORD_WEBHOOK_TECH")
+
 SEEN_FILE = "seen.json"
 
 # ===== 既読データ読み込み =====
@@ -25,36 +39,45 @@ else:
 
 new_seen_urls = set(seen_urls)
 
-# ===== RSS処理 =====
-for url in RSS_FEEDS:
-    feed = feedparser.parse(url)
+# ===== 共通投稿関数 =====
+def post_to_discord(webhook, message):
+    try:
+        response = requests.post(webhook, json={"content": message})
+        return response.status_code
+    except Exception as e:
+        print(f"エラー: {e}")
+        return None
 
-    for entry in feed.entries[:5]:
-        title = entry.title
-        link = entry.link
+# ===== RSS処理関数 =====
+def process_feeds(feeds, webhook, label):
+    global new_seen_urls
 
-        # 重複チェック
-        if link in seen_urls:
-            continue
+    for url in feeds:
+        feed = feedparser.parse(url)
 
-        message = f"""【新着AIニュース】
+        for entry in feed.entries[:5]:
+            title = entry.title
+            link = entry.link
+
+            # 重複チェック
+            if link in seen_urls:
+                continue
+
+            message = f"""【{label}】
 {title}
 {link}
 """
 
-        try:
-            response = requests.post(
-                DISCORD_WEBHOOK,
-                json={"content": message}
-            )
+            status = post_to_discord(webhook, message)
 
-            print(f"送信: {title} | ステータス: {response.status_code}")
+            print(f"{label}送信: {title} | ステータス: {status}")
 
-            if response.status_code == 204:
+            if status == 204:
                 new_seen_urls.add(link)
 
-        except Exception as e:
-            print(f"エラー: {e}")
+# ===== 実行 =====
+process_feeds(AI_FEEDS, WEBHOOK_AI, "新着AIニュース")
+process_feeds(TECH_FEEDS, WEBHOOK_TECH, "IT・テックニュース")
 
 # ===== 保存 =====
 with open(SEEN_FILE, "w") as f:
