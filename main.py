@@ -30,7 +30,7 @@ REDDIT_FEEDS = [
     "https://www.reddit.com/r/technology/.rss"
 ]
 
-WEBHOOK_TOP3 = os.getenv("DISCORD_WEBHOOK_TOP5")
+WEBHOOK_TOP3 = os.getenv("DISCORD_WEBHOOK_REDDIT")
 WEBHOOK_AI = os.getenv("DISCORD_WEBHOOK_AI")
 WEBHOOK_TECH = os.getenv("DISCORD_WEBHOOK_TECH")
 
