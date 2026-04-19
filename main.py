@@ -3,6 +3,10 @@ import requests
 import os
 import json
 from collections import Counter
+import openai  # ★追加
+
+# ===== OpenAI設定 =====
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # ===== 設定 =====
 
@@ -61,6 +65,49 @@ def post_individual(title, link, webhook, label):
 """
     post_to_discord(webhook, message)
 
+# ===== ★台本生成（追加）=====
+def generate_script(title, link):
+    try:
+        prompt = f"""
+以下のニュースをショート動画用の台本にしてください。
+
+タイトル:
+{title}
+URL:
+{link}
+
+条件:
+・30秒以内
+・簡単で分かりやすく
+・3構成（結論→内容→まとめ）
+・最後に「これヤバくない？」で締める
+"""
+
+        res = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        return res.choices[0].message.content
+
+    except Exception as e:
+        print("台本生成エラー:", e)
+        return None
+
+# ===== ★台本投稿（追加）=====
+def post_script(title, link):
+    script = generate_script(title, link)
+
+    if not script:
+        return
+
+    message = f"""🎬【台本】
+{title}
+
+{script}
+"""
+    post_to_discord(WEBHOOK_AI, message[:1900])
+
 # ===== データ収集 =====
 all_articles = []
 
@@ -68,21 +115,19 @@ def fetch_rss(feeds, source):
     for url in feeds:
         feed = feedparser.parse(url)
 
-        for entry in feed.entries[:3]:  # 投稿数制限
+        for entry in feed.entries[:3]:
             if entry.link in seen_urls:
                 continue
 
             title = entry.title
             link = entry.link
 
-            # 👇 個別投稿（追加部分）
             if source == "jp":
                 post_individual(title, link, WEBHOOK_AI, "AI・IT（教養）")
 
             elif source == "tech":
                 post_individual(title, link, WEBHOOK_TECH, "海外ITニュース")
 
-            # TOP3用
             all_articles.append({
                 "title": title,
                 "link": link,
@@ -149,6 +194,10 @@ message = message[:1900]
 
 status = post_to_discord(WEBHOOK_TOP3, message)
 print("TOP3投稿:", status)
+
+# ===== ★台本生成＆投稿（ここ追加🔥）=====
+for a in top3:
+    post_script(a["title"], a["link"])
 
 # ===== 保存 =====
 for a in top3:
