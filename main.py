@@ -3,10 +3,6 @@ import requests
 import os
 import json
 from collections import Counter
-import openai  # ★追加
-
-# ===== OpenAI設定 =====
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # ===== 設定 =====
 
@@ -36,6 +32,7 @@ REDDIT_FEEDS = [
 WEBHOOK_TOP3 = os.getenv("DISCORD_WEBHOOK_REDDIT")
 WEBHOOK_AI = os.getenv("DISCORD_WEBHOOK_AI")
 WEBHOOK_TECH = os.getenv("DISCORD_WEBHOOK_TECH")
+WEBHOOK_IDEA = os.getenv("DISCORD_WEBHOOK_IDEA")
 
 SEEN_FILE = "seen.json"
 
@@ -65,48 +62,86 @@ def post_individual(title, link, webhook, label):
 """
     post_to_discord(webhook, message)
 
-# ===== ★台本生成（追加）=====
-def generate_script(title, link):
-    try:
-        prompt = f"""
-以下のニュースをショート動画用の台本にしてください。
+# ===== ネタ投稿 =====
+def detect_tags(title):
+    tags = []
+    t = title.lower()
 
-タイトル:
+    if "ai" in t:
+        tags.append("AI")
+    if "chatgpt" in t:
+        tags.append("ChatGPT")
+    if "無料" in title:
+        tags.append("無料")
+    if "副業" in title:
+        tags.append("副業")
+
+    return tags
+
+def post_idea(title, link, rank):
+    tags = detect_tags(title)
+    tag_text = " / ".join(tags) if tags else "トレンド"
+
+    message = f"""💡【台本ネタ候補 #{rank}】
+
+タイトル：
 {title}
-URL:
+
+タグ：
+{tag_text}
+
+元記事：
 {link}
 
-条件:
-・30秒以内
-・簡単で分かりやすく
-・3構成（結論→内容→まとめ）
-・最後に「これヤバくない？」で締める
+👉 このネタをChatGPTに貼れば台本化OK
 """
+    post_to_discord(WEBHOOK_IDEA, message[:1900])
 
-        res = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}]
-        )
+# ===== バズロジック =====
+BUZZ_WORDS = [
+    "やばい","革命","終了","崩壊","無料","神","最強","衝撃",
+    "ai","chatgpt","自動化","副業","稼ぐ","仕事","消える"
+]
 
-        return res.choices[0].message.content
+EMOTION_WORDS = [
+    "驚き","衝撃","怖い","危険","便利","簡単","すごい"
+]
 
-    except Exception as e:
-        print("台本生成エラー:", e)
-        return None
+def calc_score(article, counter):
+    title = article["title"].lower()
+    score = 0
 
-# ===== ★台本投稿（追加）=====
-def post_script(title, link):
-    script = generate_script(title, link)
+    # トレンド頻度
+    words = title.split()
+    score += sum(counter[w] for w in words)
 
-    if not script:
-        return
+    # Reddit強化
+    if article["source"] == "reddit":
+        score += 8
 
-    message = f"""🎬【台本】
-{title}
+    # バズワード
+    for w in BUZZ_WORDS:
+        if w in title:
+            score += 5
 
-{script}
-"""
-    post_to_discord(WEBHOOK_AI, message[:1900])
+    # 感情ワード
+    for w in EMOTION_WORDS:
+        if w in title:
+            score += 3
+
+    # 数字
+    if any(c.isdigit() for c in title):
+        score += 4
+
+    # 短いタイトル
+    if len(title) < 60:
+        score += 3
+
+    # 長すぎ減点
+    if len(title) > 120:
+        score -= 2
+
+    return score
 
 # ===== データ収集 =====
 all_articles = []
@@ -165,18 +200,12 @@ for t in titles:
     counter.update(t.lower().split())
 
 for a in all_articles:
-    words = a["title"].lower().split()
-    trend = sum(counter[w] for w in words)
+    a["score"] = calc_score(a, counter)
 
-    if a["source"] == "reddit":
-        a["score"] += 5
-
-    a["score"] += trend
-
-# ===== TOP3抽出 =====
+# ===== TOP3 =====
 top3 = sorted(all_articles, key=lambda x: x["score"], reverse=True)[:3]
 
-# ===== 投稿（TOP3） =====
+# ===== 投稿 =====
 message = "🔥【AI・ITトレンド TOP3】\n\n"
 
 for i, a in enumerate(top3, 1):
@@ -189,15 +218,13 @@ for i, a in enumerate(top3, 1):
 
 """
 
-# Discord制限
 message = message[:1900]
-
 status = post_to_discord(WEBHOOK_TOP3, message)
 print("TOP3投稿:", status)
 
-# ===== ★台本生成＆投稿（ここ追加🔥）=====
-for a in top3:
-    post_script(a["title"], a["link"])
+# ===== ネタ投稿 =====
+for i, a in enumerate(top3, 1):
+    post_idea(a["title"], a["link"], i)
 
 # ===== 保存 =====
 for a in top3:
