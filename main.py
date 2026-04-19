@@ -45,13 +45,17 @@ else:
 
 new_seen_urls = set(seen_urls)
 
-# ===== 投稿 =====
+# ===== 投稿（防御付き）=====
 def post_to_discord(webhook, message):
+    if not webhook:
+        print("⚠️ Webhook未設定のためスキップ:", message[:50])
+        return None
+
     try:
         res = requests.post(webhook, json={"content": message})
         return res.status_code
     except Exception as e:
-        print(e)
+        print("送信エラー:", e)
         return None
 
 # ===== 個別投稿 =====
@@ -111,33 +115,26 @@ def calc_score(article, counter):
     title = article["title"].lower()
     score = 0
 
-    # トレンド頻度
     words = title.split()
     score += sum(counter[w] for w in words)
 
-    # Reddit強化
     if article["source"] == "reddit":
         score += 8
 
-    # バズワード
     for w in BUZZ_WORDS:
         if w in title:
             score += 5
 
-    # 感情ワード
     for w in EMOTION_WORDS:
         if w in title:
             score += 3
 
-    # 数字
     if any(c.isdigit() for c in title):
         score += 4
 
-    # 短いタイトル
     if len(title) < 60:
         score += 3
 
-    # 長すぎ減点
     if len(title) > 120:
         score -= 2
 
