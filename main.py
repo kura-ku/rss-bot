@@ -24,9 +24,9 @@ TECH_FEEDS = [
 ]
 
 REDDIT_FEEDS = [
-    "https://www.reddit.com/r/artificial/.rss",
-    "https://www.reddit.com/r/ChatGPT/.rss",
-    "https://www.reddit.com/r/technology/.rss"
+    "https://www.reddit.com/r/Shopify/.rss",
+    "https://www.reddit.com/r/Single Stream/.rss",
+    "https://www.reddit.com/r/IMAP/.rss"
 ]
 
 WEBHOOK_TOP3 = os.getenv("DISCORD_WEBHOOK_REDDIT")
