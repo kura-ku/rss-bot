@@ -25,7 +25,7 @@ TECH_FEEDS = [
 
 REDDIT_FEEDS = [
     "https://www.reddit.com/r/Shopify/.rss",
-    "https://www.reddit.com/r/Single Stream/.rss",
+    "https://www.reddit.com/r/SingleStream/.rss",
     "https://www.reddit.com/r/IMAP/.rss"
 ]
 
